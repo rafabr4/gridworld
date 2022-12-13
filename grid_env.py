@@ -1,5 +1,8 @@
-VALID_GRID_CHARS = set(['S', 'G', 'X', '.'])
-VALID_ACTIONS = set(['L', 'R', 'U', 'D'])
+from typing import Tuple
+import random
+
+VALID_GRID_CHARS = set(["S", "G", "X", "."])
+VALID_ACTIONS = set(["L", "R", "U", "D"])
 
 
 class InvalidGridError(Exception):
@@ -16,7 +19,17 @@ class InvalidGridError(Exception):
 
 class InvalidActionError(Exception):
     """
-    Raised when the input grid has an action that is not 'L', 'R', 'U', 'D'
+    Raised when:
+     - The input grid has an action that is not 'L', 'R', 'U', 'D'
+     - The action taken is not valid for the current state
+    """
+
+    pass
+
+
+class InvalidStateError(Exception):
+    """
+    Raised when trying to set a state that is not within the grid
     """
 
     pass
@@ -27,6 +40,8 @@ class Gridworld:
         self.load_grid(input_grid_path)
         self.load_rules(input_rules_path)
         self.define_dynamics()
+        self.__current_state = None
+        self.__goal_state = None
 
     def load_grid(self, grid_path: str) -> None:
         self.grid = []
@@ -49,23 +64,21 @@ class Gridworld:
                 col = 0
                 for cell in cells:
                     if cell.upper() not in VALID_GRID_CHARS:
-                        raise InvalidGridError(
-                            "The input grid has cells with invalid characters!"
-                        )
+                        raise InvalidGridError("The input grid has cells with invalid characters!")
 
                     self.grid[row].append(cell)
                     col += 1
 
-                    if cell.upper() == 'S':
+                    if cell.upper() == "S":
                         s_seen += 1
-                    elif cell.upper() == 'G':
+                        self.__default_start_state = (row, col)
+                    elif cell.upper() == "G":
                         g_seen += 1
+                        self.__goal_state = (row, col)
 
                 if col_max != 0:
                     if col != col_max:
-                        raise InvalidGridError(
-                            "The input grid has rows of different lenghts!"
-                        )
+                        raise InvalidGridError("The input grid has rows of different lenghts!")
                 elif col > 0:
                     col_max = col
                 else:
@@ -89,9 +102,9 @@ class Gridworld:
 
         for line in lines:
             line = line.rstrip()
-            line = line.split('#')[0].strip()   # Remove comments
+            line = line.split("#")[0].strip()  # Remove comments
 
-            if line.startswith('['):
+            if line.startswith("["):
                 current_section = line[1:-1]
 
             elif line != "":
@@ -103,11 +116,11 @@ class Gridworld:
 
                 elif current_section == "REWARDS":
                     if line.startswith("DEFAULT"):
-                        self.default_reward = int(line.split('=')[1].strip())
+                        self.default_reward = int(line.split("=")[1].strip())
 
                     else:
-                        state_action = line.split('=')[0].strip()
-                        reward = int(line.split('=')[1].strip())
+                        state_action = line.split("=")[0].strip()
+                        reward = int(line.split("=")[1].strip())
                         self.custom_rewards[state_action] = reward
 
                 elif current_section == "TRANSITIONS":
@@ -125,23 +138,23 @@ class Gridworld:
             # Check what lies ahead
             h_offset = 0
             v_offset = 0
-            if action == 'L':
+            if action == "L":
                 h_offset = -1
-            elif action == 'R':
+            elif action == "R":
                 h_offset = 1
-            elif action == 'U':
+            elif action == "U":
                 v_offset = -1
-            elif action == 'D':
+            elif action == "D":
                 v_offset = 1
             next_col = column + h_offset
             next_row = row + v_offset
 
             if (0 <= next_row < self.row_num) and (0 <= next_col < self.column_num):
-                if self.grid[next_row][next_col] in ['.', 'S', 'G']:
+                if self.grid[next_row][next_col] in [".", "S", "G"]:
                     # Add transition to new state
                     self.transitions[row][column][action] = (next_row, next_col, reward)
 
-                elif self.grid[next_row][next_col] == 'X':
+                elif self.grid[next_row][next_col] == "X":
                     # Moving to an X, stay in same state
                     self.transitions[row][column][action] = (row, column, reward)
 
@@ -150,6 +163,9 @@ class Gridworld:
                 self.transitions[row][column][action] = (row, column, reward)
 
     def define_dynamics(self) -> None:
+        # TODO instead of defining all transitions (memory intensive),
+        # could compute them on the fly depending on action selected
+
         self.transitions = {}
 
         for row in range(self.row_num):
@@ -159,7 +175,7 @@ class Gridworld:
                 if column not in self.transitions[row]:
                     self.transitions[row][column] = {}
 
-                if self.grid[row][column] in ['.', 'S']:
+                if self.grid[row][column] in [".", "S"]:
                     self.add_transitions_to_cell(row, column)
 
                 else:
@@ -175,9 +191,53 @@ class Gridworld:
             print(row_str)
         print("-" * (self.column_num * 2 + 1))
 
+    @property
+    def current_state(self):
+        return self.__current_state
+
+    @current_state.setter
+    def current_state(self, state: Tuple[int, int]):
+        row, column = state
+        if (0 <= row < self.row_num) and (0 <= column < self.column_num):
+            self.__current_state = (row, column)
+        else:
+            raise InvalidStateError("State not within grid!")
+
+    def initialize(self, method: str = None, state: Tuple[int, int] = None) -> None:
+        if method == "default":
+            self.current_state = self.__default_start_state
+
+        elif method == "random":
+            # Avoid 'X' and 'G'
+            row = None
+            column = None
+            while (row is None) or (column is None) or (self.grid[row][column] not in [".", "S"]):
+                row = random.randint(0, self.row_num - 1)
+                column = random.randint(0, self.column_num - 1)
+            self.current_state = (row, column)
+
+        elif state is not None:
+            self.current_state = state
+
+    def get_possible_actions(self):
+        row, column = self.current_state
+        return list(self.transitions[row][column].keys())
+
+    def take_action(self, action: str) -> Tuple[int, Tuple[int, int]]:
+        # Check if the action is valid
+        row, column = self.current_state
+        if action in self.transitions[row][column].keys():
+            new_row, new_column, reward = self.transitions[row][column][action]
+            self.current_state = (new_row, new_column)
+            return (reward, (new_row, new_column))
+        else:
+            raise InvalidActionError(f"Action {action} is not valid for state {row},{column}")
+
 
 if __name__ == "__main__":
     grid_path = "input_grid.txt"
     rules_path = "grid_rules.config"
     myGridworld = Gridworld(grid_path, rules_path)
     myGridworld.print_grid()
+
+# TODO implement unit tests for grid_env
