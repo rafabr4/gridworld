@@ -1,6 +1,8 @@
 from typing import Tuple
 import random
 
+# import os  # TODO remove when finished developing this module
+
 VALID_GRID_CHARS = set(["S", "G", "X", "."])
 VALID_ACTIONS = set(["L", "R", "U", "D"])
 
@@ -10,6 +12,7 @@ class InvalidGridError(Exception):
     Raised when:
      - The input grid has more than one 'S' or 'G' cell
      - The input grid has a row with no elements
+     - The input grid has an invalid line (not starting with '|' or '-')
      - There are cells with invalid characters (not 'S', 'G', 'X', '.')
      - Rows have different lengths
     """
@@ -29,7 +32,9 @@ class InvalidActionError(Exception):
 
 class InvalidStateError(Exception):
     """
-    Raised when trying to set a state that is not within the grid
+    Raised when:
+     - Trying to set a state that is not within the grid
+     - Trying to set a state with an invalid value passed (not tuple, not ints, etc.)
     """
 
     pass
@@ -37,11 +42,12 @@ class InvalidStateError(Exception):
 
 class Gridworld:
     def __init__(self, input_grid_path: str, input_rules_path: str) -> None:
+        self.__default_start_state = None
+        self.__current_state = None
+        self.__goal_state = None
         self.load_grid(input_grid_path)
         self.load_rules(input_rules_path)
         self.define_dynamics()
-        self.__current_state = None
-        self.__goal_state = None
 
     def load_grid(self, grid_path: str) -> None:
         self.grid = []
@@ -54,7 +60,7 @@ class Gridworld:
         col_max = 0
         row = 0
         for line in lines:
-            line = line.strip()
+            line = line.rstrip()
 
             if line.startswith("|") and line.endswith("|"):
                 self.grid.append([])
@@ -86,6 +92,9 @@ class Gridworld:
 
                 row += 1
 
+            elif not line.startswith("-"):
+                raise InvalidGridError(f"The grid has an invalid line:\n{line}")
+
         self.row_num = len(self.grid)
         self.column_num = len(self.grid[0])
 
@@ -115,6 +124,9 @@ class Gridworld:
                         raise InvalidActionError(f"Invalid action: {line}")
 
                 elif current_section == "REWARDS":
+                    # TODO implement pattern matching for "DEFAULT = num" and for
+                    # "num,num-Action = num", otherwise raise error
+
                     if line.startswith("DEFAULT"):
                         self.default_reward = int(line.split("=")[1].strip())
 
@@ -217,6 +229,15 @@ class Gridworld:
             self.current_state = (row, column)
 
         elif state is not None:
+            if (
+                (not isinstance(state, tuple))
+                or (len(state) != 2)
+                or (not isinstance(state[0], int))
+                or (not isinstance(state[1], int))
+            ):
+                raise InvalidStateError("Invalid state passed!")
+
+            # TODO validate state is not an X or G
             self.current_state = state
 
     def get_possible_actions(self):
@@ -234,10 +255,12 @@ class Gridworld:
             raise InvalidActionError(f"Action {action} is not valid for state {row},{column}")
 
 
-if __name__ == "__main__":
-    grid_path = "input_grid.txt"
-    rules_path = "grid_rules.config"
-    myGridworld = Gridworld(grid_path, rules_path)
-    myGridworld.print_grid()
+# if __name__ == "__main__":
+#     file_path = os.path.dirname(__file__)
+#     if file_path != "":
+#         os.chdir(file_path)
 
-# TODO implement unit tests for grid_env
+#     grid_path = "../config/input_grid.txt"
+#     rules_path = "../config/grid_rules.config"
+#     myGridworld = Gridworld(grid_path, rules_path)
+#     myGridworld.print_grid()
