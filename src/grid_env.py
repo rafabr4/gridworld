@@ -1,10 +1,8 @@
 from typing import Tuple
 import random
+import re
 
 # import os  # TODO remove when finished developing this module
-
-VALID_GRID_CHARS = set(["S", "G", "X", "."])
-VALID_ACTIONS = set(["L", "R", "U", "D"])
 
 
 class InvalidGridError(Exception):
@@ -40,16 +38,50 @@ class InvalidStateError(Exception):
     pass
 
 
-class Gridworld:
-    def __init__(self, input_grid_path: str, input_rules_path: str) -> None:
-        self.__default_start_state = None
-        self.__current_state = None
-        self.__goal_state = None
-        self.load_grid(input_grid_path)
-        self.load_rules(input_rules_path)
-        self.define_dynamics()
+class InvalidRewardConfigError(Exception):
+    """
+    Raised when:
+     - A reward in the config file doesn't match the default reward format
+     - A reward in the config file doesn't match the custom reward format
+    """
 
-    def load_grid(self, grid_path: str) -> None:
+    pass
+
+
+class IlegalCellChangeError(Exception):
+    """
+    Raised when trying to change the current cell from outside the class
+    """
+
+    pass
+
+
+class IlegalStateChangeError(Exception):
+    """
+    Raised when trying to change the current state from outside the class
+    """
+
+    pass
+
+
+class Gridworld:
+    _VALID_GRID_CHARS = set(["S", "G", "X", "."])
+    _VALID_ACTIONS = set(["L", "R", "U", "D"])
+    _PATTERN_DEFAULT_REWARD = r"DEFAULT = -{0,1}\d+"
+    _ACTIONS_FOR_REGEX = "[" + "".join(_VALID_ACTIONS) + "]"
+    _PATTERN_CUSTOM_REWARD = r"\d+,\d+-" + _ACTIONS_FOR_REGEX + r" = -{0,1}\d+"
+
+    def __init__(self, input_grid_path: str, input_rules_path: str) -> None:
+        self._default_start_state = None
+        self._current_state = None
+        self._current_cell = None
+        self._goal_state = None
+        self._load_grid(input_grid_path)
+        self._load_rules(input_rules_path)
+        self._define_dynamics()
+        self._validate_custom_rewards()
+
+    def _load_grid(self, grid_path: str) -> None:
         self.grid = []
 
         with open(grid_path, "r") as grid_file:
@@ -69,18 +101,18 @@ class Gridworld:
 
                 col = 0
                 for cell in cells:
-                    if cell.upper() not in VALID_GRID_CHARS:
+                    if cell.upper() not in self._VALID_GRID_CHARS:
                         raise InvalidGridError("The input grid has cells with invalid characters!")
-
-                    self.grid[row].append(cell)
-                    col += 1
 
                     if cell.upper() == "S":
                         s_seen += 1
-                        self.__default_start_state = (row, col)
+                        self._default_start_state = (row, col)
                     elif cell.upper() == "G":
                         g_seen += 1
-                        self.__goal_state = (row, col)
+                        self._goal_state = (row, col)
+
+                    self.grid[row].append(cell)
+                    col += 1
 
                 if col_max != 0:
                     if col != col_max:
@@ -99,9 +131,9 @@ class Gridworld:
         self.column_num = len(self.grid[0])
 
         if (s_seen != 1) or (g_seen != 1):
-            raise InvalidGridError("The input grid has more than one 'S' or 'G' cell!")
+            raise InvalidGridError("The input grid has invalid amount of 'S' or 'G' cell!")
 
-    def load_rules(self, rules_path: str) -> None:
+    def _load_rules(self, rules_path: str) -> None:
         with open(rules_path, "r") as rules_file:
             lines = rules_file.readlines()
 
@@ -118,28 +150,28 @@ class Gridworld:
 
             elif line != "":
                 if current_section == "ACTIONS":
-                    if line in VALID_ACTIONS:
+                    if line in self._VALID_ACTIONS:
                         self.actions.add(line)
                     else:
                         raise InvalidActionError(f"Invalid action: {line}")
 
                 elif current_section == "REWARDS":
-                    # TODO implement pattern matching for "DEFAULT = num" and for
-                    # "num,num-Action = num", otherwise raise error
-
-                    if line.startswith("DEFAULT"):
+                    if re.match(self._PATTERN_DEFAULT_REWARD, line):
                         self.default_reward = int(line.split("=")[1].strip())
 
-                    else:
+                    elif re.match(self._PATTERN_CUSTOM_REWARD, line):
                         state_action = line.split("=")[0].strip()
                         reward = int(line.split("=")[1].strip())
                         self.custom_rewards[state_action] = reward
+
+                    else:
+                        raise InvalidRewardConfigError(f"Invalid reward: {line}")
 
                 elif current_section == "TRANSITIONS":
                     # TODO implement custom transitions
                     pass
 
-    def add_transitions_to_cell(self, row: int, column: int) -> None:
+    def _add_transitions_to_cell(self, row: int, column: int) -> None:
         for action in self.actions:
             # Check if there is a custom reward for this state-action pair
             try:
@@ -174,7 +206,7 @@ class Gridworld:
                 # Going off grid, stay in same state
                 self.transitions[row][column][action] = (row, column, reward)
 
-    def define_dynamics(self) -> None:
+    def _define_dynamics(self) -> None:
         # TODO instead of defining all transitions (memory intensive),
         # could compute them on the fly depending on action selected
 
@@ -188,11 +220,16 @@ class Gridworld:
                     self.transitions[row][column] = {}
 
                 if self.grid[row][column] in [".", "S"]:
-                    self.add_transitions_to_cell(row, column)
+                    self._add_transitions_to_cell(row, column)
 
                 else:
                     # No action for 'X' or 'G' states
                     pass
+
+    def _validate_custom_rewards(self) -> None:
+        # TODO check that states are valid, and actions are valid
+        # Raise errors otherwise, add test cases
+        pass
 
     def print_grid(self) -> None:
         print("-" * (self.column_num * 2 + 1))
@@ -203,21 +240,13 @@ class Gridworld:
             print(row_str)
         print("-" * (self.column_num * 2 + 1))
 
-    @property
-    def current_state(self):
-        return self.__current_state
-
-    @current_state.setter
-    def current_state(self, state: Tuple[int, int]):
-        row, column = state
-        if (0 <= row < self.row_num) and (0 <= column < self.column_num):
-            self.__current_state = (row, column)
-        else:
-            raise InvalidStateError("State not within grid!")
+    def _change_state_and_cell(self, state: Tuple[int, int]) -> None:
+        self._current_state = state
+        self._current_cell = self.grid[state[0]][state[1]]
 
     def initialize(self, method: str = None, state: Tuple[int, int] = None) -> None:
         if method == "default":
-            self.current_state = self.__default_start_state
+            self._change_state_and_cell(self._default_start_state)
 
         elif method == "random":
             # Avoid 'X' and 'G'
@@ -226,9 +255,10 @@ class Gridworld:
             while (row is None) or (column is None) or (self.grid[row][column] not in [".", "S"]):
                 row = random.randint(0, self.row_num - 1)
                 column = random.randint(0, self.column_num - 1)
-            self.current_state = (row, column)
+            self._change_state_and_cell((row, column))
 
         elif state is not None:
+            # Check it has the format: Tuple[int, int]
             if (
                 (not isinstance(state, tuple))
                 or (len(state) != 2)
@@ -237,8 +267,14 @@ class Gridworld:
             ):
                 raise InvalidStateError("Invalid state passed!")
 
-            # TODO validate state is not an X or G
-            self.current_state = state
+            # Check state is within grid and is not an 'X' or 'G'
+            if (0 <= state[0] < self.row_num) and (0 <= state[1] < self.column_num):
+                if self.grid[state[0]][state[1]] in [".", "S"]:
+                    self._change_state_and_cell(state)
+                else:
+                    raise InvalidStateError("State needs to be a cell with '.' or 'S'")
+            else:
+                raise InvalidStateError("State not within grid!")
 
     def get_possible_actions(self):
         row, column = self.current_state
@@ -249,10 +285,26 @@ class Gridworld:
         row, column = self.current_state
         if action in self.transitions[row][column].keys():
             new_row, new_column, reward = self.transitions[row][column][action]
-            self.current_state = (new_row, new_column)
+            self._current_state = (new_row, new_column)
             return (reward, (new_row, new_column))
         else:
             raise InvalidActionError(f"Action {action} is not valid for state {row},{column}")
+
+    @property
+    def current_cell(self):
+        return self._current_cell
+
+    @current_cell.setter
+    def current_cell(self, value):
+        raise IlegalCellChangeError("Cannot change current cell from outside the class!")
+
+    @property
+    def current_state(self):
+        return self._current_state
+
+    @current_state.setter
+    def current_state(self, value):
+        raise IlegalStateChangeError("Cannot change current state from outside the class!")
 
 
 # if __name__ == "__main__":
