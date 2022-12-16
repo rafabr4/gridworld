@@ -1,4 +1,4 @@
-- Grid with invalid character
+- Grid with invalid character ' ' in (2, 3)
 -----------
 |.|.|.|.|.|
 |.|.|.|X|.|

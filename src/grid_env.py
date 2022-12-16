@@ -43,6 +43,7 @@ class InvalidRewardConfigError(Exception):
     Raised when:
      - A reward in the config file doesn't match the default reward format
      - A reward in the config file doesn't match the custom reward format
+     - A reward in the config file specifies a state that is off grid
     """
 
     pass
@@ -227,9 +228,15 @@ class Gridworld:
                     pass
 
     def _validate_custom_rewards(self) -> None:
-        # TODO check that states are valid, and actions are valid
-        # Raise errors otherwise, add test cases
-        pass
+        for state_action in self.custom_rewards.keys():
+            # No need to validate action because it was already done in the regex matching
+            state, _ = state_action.split("-")
+            row, column = [int(x) for x in state.split(",")]
+
+            if (row < 0) or (row >= self.row_num) or (column < 0) or (column >= self.column_num):
+                raise InvalidRewardConfigError(
+                    f"Invalid reward due to state off grid: {state_action}"
+                )
 
     def print_grid(self) -> None:
         print("-" * (self.column_num * 2 + 1))
@@ -285,7 +292,8 @@ class Gridworld:
         row, column = self.current_state
         if action in self.transitions[row][column].keys():
             new_row, new_column, reward = self.transitions[row][column][action]
-            self._current_state = (new_row, new_column)
+            self._change_state_and_cell((new_row, new_column))
+            # TODO if landed in 'G', do something
             return (reward, (new_row, new_column))
         else:
             raise InvalidActionError(f"Action {action} is not valid for state {row},{column}")

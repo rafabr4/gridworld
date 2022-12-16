@@ -1,4 +1,4 @@
-- Grid with invalid character
+- Grid with invalid character 'T' in (4, 1)
 -----------
 |.|.|.|.|.|
 |.|.|.|X|.|

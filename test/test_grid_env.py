@@ -17,9 +17,11 @@ grid_bad_08_path = "test/config/input_grid_bad_08.txt"  # More than one 'G'
 grid_bad_09_path = "test/config/input_grid_bad_09.txt"  # No 'S'
 grid_bad_10_path = "test/config/input_grid_bad_10.txt"  # No 'G'
 
-rules_bad_01_path = "test/config/grid_rules_bad_01.config"  # Invalid action
-rules_bad_02_path = "test/config/grid_rules_bad_02.config"  # Invalid reward
-rules_bad_03_path = "test/config/grid_rules_bad_03.config"  # Invalid reward
+rules_bad_01_path = "test/config/grid_rules_bad_01.config"  # Invalid action definition
+rules_bad_02_path = "test/config/grid_rules_bad_02.config"  # Invalid default reward format
+rules_bad_03_path = "test/config/grid_rules_bad_03.config"  # Invalid custom reward format
+rules_bad_05_path = "test/config/grid_rules_bad_04.config"  # Invalid custom reward action
+rules_bad_04_path = "test/config/grid_rules_bad_05.config"  # Invalid custom reward off grid state
 
 
 class TestInputGridLoadingPositive(unittest.TestCase):
@@ -56,10 +58,12 @@ class TestInputGridLoadingPositive(unittest.TestCase):
 
 class TestInputGridLoadingNegative(unittest.TestCase):
     def test_invalid_char_01(self):
+        # Grid with invalid character 'T'
         with self.assertRaises(grid_env.InvalidGridError):
             grid_env.Gridworld(grid_bad_01_path, rules_good_path)
 
     def test_invalid_char_02(self):
+        # Grid with invalid character ' '
         with self.assertRaises(grid_env.InvalidGridError):
             grid_env.Gridworld(grid_bad_02_path, rules_good_path)
 
@@ -122,17 +126,30 @@ class TestConfigLoadingPositive(unittest.TestCase):
 
 
 class TestConfigLoadingNegative(unittest.TestCase):
-    def test_invalid_action(self):
+    def test_invalid_action_definition(self):
+        # Defining action 'P' is not valid
         with self.assertRaises(grid_env.InvalidActionError):
             grid_env.Gridworld(grid_good_path, rules_bad_01_path)
 
-    def test_invalid_reward_01(self):
+    def test_invalid_default_reward_format(self):
+        # Using ':' instead of '='
         with self.assertRaises(grid_env.InvalidRewardConfigError):
             grid_env.Gridworld(grid_good_path, rules_bad_02_path)
 
-    def test_invalid_reward_02(self):
+    def test_invalid_custom_reward_format(self):
+        # Using ',' instead of '-'
         with self.assertRaises(grid_env.InvalidRewardConfigError):
             grid_env.Gridworld(grid_good_path, rules_bad_03_path)
+
+    def test_invalid_custom_reward_action(self):
+        # Invalid action 'P' in custom reward
+        with self.assertRaises(grid_env.InvalidRewardConfigError):
+            grid_env.Gridworld(grid_good_path, rules_bad_04_path)
+
+    def test_invalid_custom_reward_state(self):
+        # Invalid off grid state (8, 3)
+        with self.assertRaises(grid_env.InvalidRewardConfigError):
+            grid_env.Gridworld(grid_good_path, rules_bad_05_path)
 
 
 class TestInitializePositive(unittest.TestCase):
@@ -165,11 +182,13 @@ class TestInitializePositive(unittest.TestCase):
             )
 
     def test_initialize_specific_state_01(self):
+        # Initialize to a '.'
         self.gridworld.initialize(state=(0, 0))
         self.assertEqual(self.gridworld.current_state, (0, 0), "Incorrect specific initialization")
         self.assertEqual(self.gridworld.current_cell, ".", "Incorrect specific initialization")
 
     def test_initialize_specific_state_02(self):
+        # Initialize to an 'S'
         self.gridworld.initialize(state=(3, 0))
         self.assertEqual(self.gridworld.current_state, (3, 0), "Incorrect specific initialization")
         self.assertEqual(self.gridworld.current_cell, "S", "Incorrect specific initialization")
@@ -181,38 +200,47 @@ class TestInitializeNegative(unittest.TestCase):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
 
     def test_initialize_invalid_state_01(self):
+        # Pass a list instead of a tuple
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=[0, 0])
 
     def test_initialize_invalid_state_02(self):
+        # Pass a string instead of a tuple
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state="state")
 
     def test_initialize_invalid_state_03(self):
+        # Tuple larger than expected
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=(0, 0, 0))
 
     def test_initialize_invalid_state_04(self):
+        # Tuple shorter than expected
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=(0))
 
     def test_initialize_invalid_state_05(self):
+        # Tuple of strings instead of ints
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=("a", "b"))
 
     def test_initialize_invalid_state_06(self):
+        # Off grid state
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=(-1, 0))
 
     def test_initialize_invalid_state_07(self):
+        # Off grid state
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=(0, 7))
 
     def test_initialize_invalid_state_08(self):
+        # Try to initialize to an 'X'
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=(1, 3))
 
     def test_initialize_invalid_state_09(self):
+        # Try to initialize to a 'G'
         with self.assertRaises(grid_env.InvalidStateError):
             self.gridworld.initialize(state=(2, 4))
 
@@ -231,7 +259,74 @@ class TestChangeStateNegative(unittest.TestCase):
             self.gridworld.current_cell = "."
 
 
+class TestDynamicsPositive(unittest.TestCase):
+    def test_get_possible_actions_dot_01(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(0, 0))
+        actions = self.gridworld.get_possible_actions()
+        self.assertEqual({"L", "R", "U", "D"}, set(actions))
+
+    def test_get_possible_actions_dot_02(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(2, 3))
+        actions = self.gridworld.get_possible_actions()
+        self.assertEqual({"L", "R", "U", "D"}, set(actions))
+
+    def test_get_possible_actions_S(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(3, 0))
+        actions = self.gridworld.get_possible_actions()
+        self.assertEqual({"L", "R", "U", "D"}, set(actions))
+
+    def test_get_possible_actions_X(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld._current_state = (2, 2)
+        actions = self.gridworld.get_possible_actions()
+        self.assertEqual(set(), set(actions))
+
+    def test_get_possible_actions_G(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld._current_state = (2, 4)
+        actions = self.gridworld.get_possible_actions()
+        self.assertEqual(set(), set(actions))
+
+    def test_state_dynamics_dot_0_0(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(0, 0))
+        self.assertEqual(
+            self.gridworld.transitions[0][0]["L"], (0, 0, -1), "Incorrect dynamic at 0,0"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[0][0]["R"], (0, 1, -1), "Incorrect dynamic at 0,0"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[0][0]["U"], (0, 0, -1), "Incorrect dynamic at 0,0"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[0][0]["D"], (1, 0, -1), "Incorrect dynamic at 0,0"
+        )
+
+    def test_state_dynamics_dot_3_0(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(3, 0))
+        self.assertEqual(
+            self.gridworld.transitions[3][0]["L"], (3, 0, -1), "Incorrect dynamic at 3,0"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[3][0]["R"], (3, 1, -1), "Incorrect dynamic at 3,0"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[3][0]["U"], (2, 0, -1), "Incorrect dynamic at 3,0"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[3][0]["D"], (4, 0, -1), "Incorrect dynamic at 3,0"
+        )
+
+    # TODO continue with dynamics with 1,2, 2,3
+
+
 # TODO missing testing for:
-#  - validate custom rewards
 #  - get_possible_actions
-#  - take_action
+#  - take_action (positive: returns expected new state and reward)
+#  - take_action (negative: since we can't be in 'X' or 'G', pass something like 'P'?,
+#                           or force 'G' and pass an action 'D' and see it fail?)
