@@ -306,7 +306,39 @@ class TestDynamicsPositive(unittest.TestCase):
             self.gridworld.transitions[0][0]["D"], (1, 0, -1), "Incorrect dynamic at 0,0"
         )
 
-    def test_state_dynamics_dot_3_0(self):
+    def test_state_dynamics_dot_1_2(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(1, 2))
+        self.assertEqual(
+            self.gridworld.transitions[1][2]["L"], (1, 1, -1), "Incorrect dynamic at 1,2"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[1][2]["R"], (1, 2, -1), "Incorrect dynamic at 1,2"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[1][2]["U"], (0, 2, -1), "Incorrect dynamic at 1,2"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[1][2]["D"], (1, 2, -1), "Incorrect dynamic at 1,2"
+        )
+
+    def test_state_dynamics_dot_2_3(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(2, 3))
+        self.assertEqual(
+            self.gridworld.transitions[2][3]["L"], (2, 3, -1), "Incorrect dynamic at 2,3"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[2][3]["R"], (2, 4, 0), "Incorrect dynamic at 2,3"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[2][3]["U"], (2, 3, -1), "Incorrect dynamic at 2,3"
+        )
+        self.assertEqual(
+            self.gridworld.transitions[2][3]["D"], (3, 3, -1), "Incorrect dynamic at 2,3"
+        )
+
+    def test_state_dynamics_S_3_0(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
         self.gridworld.initialize(state=(3, 0))
         self.assertEqual(
@@ -322,11 +354,60 @@ class TestDynamicsPositive(unittest.TestCase):
             self.gridworld.transitions[3][0]["D"], (4, 0, -1), "Incorrect dynamic at 3,0"
         )
 
-    # TODO continue with dynamics with 1,2, 2,3
+    def test_take_action_01(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(0, 0))
+        reward, new_state = self.gridworld.take_action("L")
+        self.assertEqual(reward, -1)
+        self.assertEqual(new_state, (0, 0))
+
+    def test_take_action_02(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(3, 0))
+        reward, new_state = self.gridworld.take_action("R")
+        self.assertEqual(reward, -1)
+        self.assertEqual(new_state, (3, 1))
+
+    def test_take_action_03(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(3, 3))
+        reward, new_state = self.gridworld.take_action("D")
+        self.assertEqual(reward, -1)
+        self.assertEqual(new_state, (3, 3))
+
+    def test_take_action_04(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(3, 4))
+        reward, new_state = self.gridworld.take_action("U")
+        self.assertEqual(reward, 0)
+        self.assertEqual(new_state, (2, 4))
 
 
-# TODO missing testing for:
-#  - get_possible_actions
-#  - take_action (positive: returns expected new state and reward)
-#  - take_action (negative: since we can't be in 'X' or 'G', pass something like 'P'?,
-#                           or force 'G' and pass an action 'D' and see it fail?)
+class TestDynamicsNegative(unittest.TestCase):
+    def test_take_invalid_action_from_dot(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(0, 0))
+        with self.assertRaises(grid_env.InvalidActionError):
+            self.gridworld.take_action("P")
+
+    def test_take_invalid_action_from_S(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        self.gridworld.initialize(state=(3, 0))
+        with self.assertRaises(grid_env.InvalidActionError):
+            self.gridworld.take_action("T")
+
+    def test_take_action_from_X(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        # Force to be in an 'X' cell
+        self.gridworld._current_state = (1, 3)
+        self.gridworld._current_cell = "X"
+        with self.assertRaises(grid_env.InvalidActionError):
+            self.gridworld.take_action("L")
+
+    def test_take_action_from_G(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        # Force to be in the 'G' cell
+        self.gridworld._current_state = (2, 4)
+        self.gridworld._current_cell = "G"
+        with self.assertRaises(grid_env.InvalidActionError):
+            self.gridworld.take_action("U")
