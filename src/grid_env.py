@@ -283,9 +283,27 @@ class Gridworld:
             else:
                 raise InvalidStateError("State not within grid!")
 
-    def get_possible_actions(self):
-        row, column = self.current_state
+    def get_possible_actions(self, state: Tuple[int, int] = None):
+        if state is not None:
+            # Use argument state
+            if (0 <= state[0] < self.row_num) and (0 <= state[1] < self.column_num):
+                row, column = state
+            else:
+                raise InvalidStateError("State not within grid!")
+        else:
+            # Use current state
+            row, column = self.current_state
         return list(self.transitions[row][column].keys())
+
+    def get_all_possible_states(self) -> list[Tuple[int, int]]:
+        states = []
+        for row in range(self.row_num):
+            for column in range(self.column_num):
+                # 'X' states are not allowed
+                if self.grid[row][column] in ["S", ".", "G"]:
+                    states.append((row, column))
+
+        return states
 
     def take_action(self, action: str) -> Tuple[int, Tuple[int, int]]:
         # Check if the action is valid

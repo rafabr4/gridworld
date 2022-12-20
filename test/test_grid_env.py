@@ -260,35 +260,97 @@ class TestChangeStateNegative(unittest.TestCase):
 
 
 class TestDynamicsPositive(unittest.TestCase):
-    def test_get_possible_actions_dot_01(self):
+    def test_get_possible_actions_current_dot_01(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
         self.gridworld.initialize(state=(0, 0))
         actions = self.gridworld.get_possible_actions()
         self.assertEqual({"L", "R", "U", "D"}, set(actions))
 
-    def test_get_possible_actions_dot_02(self):
+    def test_get_possible_actions_current_dot_02(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
         self.gridworld.initialize(state=(2, 3))
         actions = self.gridworld.get_possible_actions()
         self.assertEqual({"L", "R", "U", "D"}, set(actions))
 
-    def test_get_possible_actions_S(self):
+    def test_get_possible_actions_current_S(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
         self.gridworld.initialize(state=(3, 0))
         actions = self.gridworld.get_possible_actions()
         self.assertEqual({"L", "R", "U", "D"}, set(actions))
 
-    def test_get_possible_actions_X(self):
+    def test_get_possible_actions_current_X(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        # Access internal variable to force state
         self.gridworld._current_state = (2, 2)
         actions = self.gridworld.get_possible_actions()
         self.assertEqual(set(), set(actions))
 
-    def test_get_possible_actions_G(self):
+    def test_get_possible_actions_current_G(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        # Access internal variable to force state
         self.gridworld._current_state = (2, 4)
         actions = self.gridworld.get_possible_actions()
         self.assertEqual(set(), set(actions))
+
+    def test_get_possible_actions_specific_dot_01(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        actions = self.gridworld.get_possible_actions((0, 0))
+        self.assertEqual({"L", "R", "U", "D"}, set(actions))
+
+    def test_get_possible_actions_specific_dot_02(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        actions = self.gridworld.get_possible_actions((2, 3))
+        self.assertEqual({"L", "R", "U", "D"}, set(actions))
+
+    def test_get_possible_actions_specific_S(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        actions = self.gridworld.get_possible_actions((3, 0))
+        self.assertEqual({"L", "R", "U", "D"}, set(actions))
+
+    def test_get_possible_actions_specific_X(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        actions = self.gridworld.get_possible_actions((2, 2))
+        self.assertEqual(set(), set(actions))
+
+    def test_get_possible_actions_specific_G(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        actions = self.gridworld.get_possible_actions((2, 4))
+        self.assertEqual(set(), set(actions))
+
+    def test_get_all_possible_states(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        states = self.gridworld.get_all_possible_states()
+        self.assertEqual(
+            states,
+            [
+                (0, 0),
+                (0, 1),
+                (0, 2),
+                (0, 3),
+                (0, 4),
+                (1, 0),
+                (1, 1),
+                (1, 2),
+                (1, 4),
+                (2, 0),
+                (2, 1),
+                (2, 3),
+                (2, 4),
+                (3, 0),
+                (3, 1),
+                (3, 3),
+                (3, 4),
+                (4, 0),
+                (4, 1),
+                (4, 2),
+                (4, 4),
+                (5, 0),
+                (5, 1),
+                (5, 2),
+                (5, 3),
+                (5, 4),
+            ],
+        )
 
     def test_state_dynamics_dot_0_0(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
@@ -384,6 +446,16 @@ class TestDynamicsPositive(unittest.TestCase):
 
 
 class TestDynamicsNegative(unittest.TestCase):
+    def test_get_possible_actions_specific_off_grid_01(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        with self.assertRaises(grid_env.InvalidStateError):
+            self.gridworld.get_possible_actions((0, -1))
+
+    def test_get_possible_actions_specific_off_grid_02(self):
+        self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
+        with self.assertRaises(grid_env.InvalidStateError):
+            self.gridworld.get_possible_actions((7, 1))
+
     def test_take_invalid_action_from_dot(self):
         self.gridworld = grid_env.Gridworld(grid_good_path, rules_good_path)
         self.gridworld.initialize(state=(0, 0))
