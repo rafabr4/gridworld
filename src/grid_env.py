@@ -1,8 +1,7 @@
 from typing import Tuple
+from base_env import Environment
 import random
 import re
-
-# import os  # TODO remove when finished developing this module
 
 
 class InvalidGridError(Exception):
@@ -65,7 +64,7 @@ class IlegalStateChangeError(Exception):
     pass
 
 
-class Gridworld:
+class Gridworld(Environment):
     _VALID_GRID_CHARS = set(["S", "G", "X", "."])
     _VALID_ACTIONS = set(["L", "R", "U", "D"])
     _PATTERN_DEFAULT_REWARD = r"DEFAULT = -{0,1}\d+"
@@ -251,7 +250,9 @@ class Gridworld:
         self._current_state = state
         self._current_cell = self.grid[state[0]][state[1]]
 
-    def initialize(self, method: str = None, state: Tuple[int, int] = None) -> None:
+    def initialize(
+        self, method: str = None, state: Tuple[int, int] = None
+    ) -> Tuple[Tuple[int, int], str]:
         if method == "default":
             self._change_state_and_cell(self._default_start_state)
 
@@ -283,7 +284,9 @@ class Gridworld:
             else:
                 raise InvalidStateError("State not within grid!")
 
-    def get_possible_actions(self, state: Tuple[int, int] = None):
+        return (self.current_state, self.current_cell)
+
+    def get_possible_actions(self, state: Tuple[int, int] = None) -> list:
         if state is not None:
             # Use argument state
             if (0 <= state[0] < self.row_num) and (0 <= state[1] < self.column_num):
@@ -331,14 +334,3 @@ class Gridworld:
     @current_state.setter
     def current_state(self, value):
         raise IlegalStateChangeError("Cannot change current state from outside the class!")
-
-
-# if __name__ == "__main__":
-#     file_path = os.path.dirname(__file__)
-#     if file_path != "":
-#         os.chdir(file_path)
-
-#     grid_path = "../config/input_grid.txt"
-#     rules_path = "../config/grid_rules.config"
-#     myGridworld = Gridworld(grid_path, rules_path)
-#     myGridworld.print_grid()
