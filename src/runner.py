@@ -13,21 +13,28 @@ if __name__ == "__main__":
     # myGridworld.print_grid()
 
     # TODO test random epsilon and alfa values, store results, plot and find best
-    myDynaAgent = DynaAgent(myGridworld, epsilon=0.01, alfa=0.1, gamma=1)
+    n_episodes = 100
+    myDynaAgent = DynaAgent(
+        myGridworld,
+        # exploration="epsilon",
+        exploration="decaying-epsilon",
+        decay_eps_episodes=n_episodes,
+        epsilon=0.01,
+        alfa=0.1,
+        gamma=1,
+    )
 
-    n_epsiodes = 100
-    steps_per_episode = [0] * n_epsiodes
-    for i in range(n_epsiodes):
-        myDynaAgent.initialize_env(method="default")
+    steps_per_episode = [0] * n_episodes
+    for i in range(n_episodes):
+        myDynaAgent.init_round(method="default")
         while not myDynaAgent.finished():
-            myDynaAgent.play_e_greedy_step(n_updates=10)
-            steps_per_episode[i] += 1
+            myDynaAgent.play_step(n_updates=10)
+        steps_per_episode[i] = myDynaAgent.steps
 
     # Repeat with epsilon set to 0 to see how close are we to the optimal policy
     myDynaAgent.epsilon = 0
-    myDynaAgent.initialize_env(method="default")
-    final_steps = 0
+    myDynaAgent.init_round(method="default")
     while not myDynaAgent.finished():
-        myDynaAgent.play_e_greedy_step(n_updates=0)
-        final_steps += 1
+        myDynaAgent.play_step(n_updates=0, verbose=True)
+    final_steps = myDynaAgent.steps
     pass

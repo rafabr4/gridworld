@@ -207,7 +207,7 @@ class Gridworld(Environment):
                 self.transitions[row][column][action] = (row, column, reward)
 
     def _define_dynamics(self) -> None:
-        # TODO instead of defining all transitions (memory intensive),
+        # IMPROVEMENT instead of defining all transitions (memory intensive),
         # could compute them on the fly depending on action selected
 
         self.transitions = {}
@@ -314,7 +314,6 @@ class Gridworld(Environment):
         if action in self.transitions[row][column].keys():
             new_row, new_column, reward = self.transitions[row][column][action]
             self._change_state_and_cell((new_row, new_column))
-            # TODO if landed in 'G', do something
             return (reward, (new_row, new_column))
         else:
             raise InvalidActionError(f"Action {action} is not valid for state {row},{column}")
