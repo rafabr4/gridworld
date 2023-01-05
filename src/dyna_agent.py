@@ -1,12 +1,33 @@
 from base_env import Environment
 import numpy as np
 import random
+import math
 
 
 class InvalidEnvInit(Exception):
     """
     Raised when trying to initialize the environment with a method that is not "default" or
     "random", and without specifying a state.
+    """
+
+    pass
+
+
+class InvalidExplorationMethod(Exception):
+    """
+    Raised when the passed exploration method is not:
+     - "epsilon"
+     - "decaying-epsilon"
+     - "ucb"
+    """
+
+    pass
+
+
+class InvalidAlfaValues(Exception):
+    """
+    Raised when the passed alfa and end_alfa don't meet:
+        alfa >= end_alfa >= 0
     """
 
     pass
@@ -20,15 +41,32 @@ class DynaAgent:
         epsilon: float = 0.1,
         decay_eps_episodes: int = 100,
         alfa: float = 0.1,
+        end_alfa: float = 0.1,
+        decay_alfa_episodes: int = 100,
         gamma: float = 1,
+        ucb_c: float = 1,
     ):
         self.env = env
+
+        if exploration not in ["epsilon", "decaying-epsilon", "ucb"]:
+            raise InvalidExplorationMethod("Invalid exploration method!")
         self.exploration = exploration
         if self.exploration in ["epsilon", "decaying-epsilon"]:
-            self.start_epsilon = self.epsilon = epsilon
-        if self.exploration in ["decaying-epsilon"]:
+            self.epsilon = epsilon
+            self.start_epsilon = epsilon
+        if self.exploration == "decaying-epsilon":
             self.decay_eps_episodes = decay_eps_episodes
-        self.alfa = alfa
+        if self.exploration == "ucb":
+            self.ucb_c = ucb_c
+            self._counts_actions = {}
+
+        if alfa >= end_alfa >= 0:
+            self.alfa = alfa
+            self.end_alfa = end_alfa
+            self.decay_alfa_episodes = decay_alfa_episodes
+        else:
+            raise InvalidAlfaValues("Invalid alfa and end_alfa values!")
+
         self.gamma = gamma
         self.episodes = 0
         self.steps = 0
@@ -45,6 +83,10 @@ class DynaAgent:
             # Terminal states won't be included since they have no actions
             for action in actions:
                 self._state_action_pairs.append((state, action))
+
+                if self.exploration == "ucb":
+                    self._counts_actions[(state, action)] = 1
+
         self._state_action_pairs.sort()
 
     def _initialize_model(self) -> None:
@@ -92,6 +134,12 @@ class DynaAgent:
             r = (self.decay_eps_episodes - self.episodes) / self.decay_eps_episodes
             self.epsilon = r * self.epsilon
 
+    def _update_alfa(self):
+        # Decay alfa to end_alfa after decay_alfa_episodes
+        if (self.alfa > self.end_alfa) and (self.decay_alfa_episodes >= self.episodes):
+            r = (self.decay_alfa_episodes - self.episodes) / self.decay_alfa_episodes
+            self.alfa = r * (self.alfa - self.end_alfa) + self.end_alfa
+
     def _get_e_greedy_action(self) -> str:
         actions = self.env.get_possible_actions(self.current_state)
 
@@ -112,8 +160,27 @@ class DynaAgent:
         return action
 
     def _get_ucb_action(self) -> str:
-        # TODO implement r + c*sqrt(f(t)) exploration bonus strategy for action selection
-        return ""
+        actions = self.env.get_possible_actions(self.current_state)
+
+        adjusted_qvalues = {}
+        for action in actions:
+            # Get current qvalue
+            adjusted_qvalues[action] = self._qvalues[self.current_state][action]
+
+            # Add exploration bonus based on current round and times the action has been played
+            times_played = self._counts_actions[(self.current_state, action)]
+            adjusted_qvalues[action] += self.ucb_c * math.sqrt(
+                2 * math.log(self.episodes) / times_played
+            )
+
+        max_value = max(adjusted_qvalues.values())
+        action = random.choice(
+            [key for key, value in adjusted_qvalues.items() if value == max_value]
+        )
+
+        self._counts_actions[(self.current_state, action)] += 1
+
+        return action
 
     def _initialize_env(self, method: str = None, state=None) -> None:
         # We're guaranteed to initialize in a non-terminal state
@@ -126,20 +193,27 @@ class DynaAgent:
 
     def init_round(self, method: str = None, state=None) -> None:
         self.steps = 0
+        self.episodes += 1
         self._initialize_env(method=method, state=state)
 
     def reset_agent(self) -> None:
-        # TODO should just call __init__ to reset everything?
-        self.episodes = 0
-        if self.exploration in ["decaying-epsilon"]:
-            self.epsilon = self.start_epsilon
+        self.__init__(
+            env=self.env,
+            exploration=self.exploration,
+            epsilon=self.epsilon,
+            decay_eps_episodes=self.decay_eps_episodes,
+            alfa=self.alfa,
+            gamma=self.gamma,
+        )
 
     def play_step(self, n_updates: int = 10, verbose: bool = False) -> None:
         # Get an action according to the strategy being used
         if self.exploration in ["epsilon", "decaying-epsilon"]:
             action = self._get_e_greedy_action()
-        else:
+        elif self.exploration == "ucb":
             action = self._get_ucb_action()
+        else:
+            raise InvalidExplorationMethod("Invalid exploration method!")
 
         # Update seen states and actions taken
         if self.current_state in self._seen_states:
@@ -162,14 +236,11 @@ class DynaAgent:
         self.steps += 1
 
         if self.current_cell == "G":
-            self.episodes += 1
+            # Epsiode finished, do some updates
+            self._update_alfa()
 
             if self.exploration == "decaying-epsilon":
                 self._update_epsilon()
-
-            # TODO also update alfa (learning rate)?
-            # Could use same strategy as for epsilon, but stablish a non-zero end value
-            # See https://stackoverflow.com/questions/53198503/epsilon-and-learning-rate-decay-in-epsilon-greedy-q-learning
 
     def finished(self) -> bool:
         return self.current_cell == "G"

@@ -17,10 +17,13 @@ if __name__ == "__main__":
     myDynaAgent = DynaAgent(
         myGridworld,
         # exploration="epsilon",
-        exploration="decaying-epsilon",
-        decay_eps_episodes=n_episodes,
-        epsilon=0.01,
-        alfa=0.1,
+        # exploration="decaying-epsilon",
+        # decay_eps_episodes=n_episodes,
+        # epsilon=0.01,
+        exploration="ucb",
+        ucb_c=0.5,
+        alfa=0.5,
+        end_alfa=0.05,
         gamma=1,
     )
 
@@ -28,11 +31,12 @@ if __name__ == "__main__":
     for i in range(n_episodes):
         myDynaAgent.init_round(method="default")
         while not myDynaAgent.finished():
-            myDynaAgent.play_step(n_updates=10)
+            myDynaAgent.play_step(n_updates=50)
         steps_per_episode[i] = myDynaAgent.steps
 
     # Repeat with epsilon set to 0 to see how close are we to the optimal policy
-    myDynaAgent.epsilon = 0
+    # myDynaAgent.epsilon = 0
+    myDynaAgent.ucb_c = 0
     myDynaAgent.init_round(method="default")
     while not myDynaAgent.finished():
         myDynaAgent.play_step(n_updates=0, verbose=True)
