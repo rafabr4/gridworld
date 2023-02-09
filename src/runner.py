@@ -7,7 +7,8 @@ if __name__ == "__main__":
     if file_path != "":
         os.chdir(file_path)
 
-    grid_path = "../config/input_grid.txt"
+    # grid_path = "../config/input_grid.txt"
+    grid_path = "../config/input_grid_customT.txt"
     rules_path = "../config/grid_rules.config"
     myGridworld = Gridworld(grid_path, rules_path)
     # myGridworld.print_grid()

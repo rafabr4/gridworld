@@ -248,3 +248,4 @@ class DynaAgent:
 
 # IMPROVEMENT
 # Define properties, getter, setter, etc.
+# Add unit tests for this class

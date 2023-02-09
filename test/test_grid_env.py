@@ -483,3 +483,6 @@ class TestDynamicsNegative(unittest.TestCase):
         self.gridworld._current_cell = "G"
         with self.assertRaises(grid_env.InvalidActionError):
             self.gridworld.take_action("U")
+
+
+# TODO add tests for custom transitions

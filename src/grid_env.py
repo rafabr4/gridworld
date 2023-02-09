@@ -1,7 +1,11 @@
 from typing import Tuple
-from base_env import Environment
 import random
 import re
+
+try:
+    from base_env import Environment  # Works with normal code
+except ModuleNotFoundError:
+    from src.base_env import Environment  # Works when called from unittest
 
 
 class InvalidGridError(Exception):
@@ -48,6 +52,15 @@ class InvalidRewardConfigError(Exception):
     pass
 
 
+class InvalidTransitionConfigError(Exception):
+    """
+    Raised when:
+     - A custom transition in the config file doesn't match the format
+    """
+
+    pass
+
+
 class IlegalCellChangeError(Exception):
     """
     Raised when trying to change the current cell from outside the class
@@ -67,9 +80,12 @@ class IlegalStateChangeError(Exception):
 class Gridworld(Environment):
     _VALID_GRID_CHARS = set(["S", "G", "X", "."])
     _VALID_ACTIONS = set(["L", "R", "U", "D"])
-    _PATTERN_DEFAULT_REWARD = r"DEFAULT = -{0,1}\d+"
+    _PATTERN_DEFAULT_REWARD = r"DEFAULT = (-{0,1}\d+)"
     _ACTIONS_FOR_REGEX = "[" + "".join(_VALID_ACTIONS) + "]"
-    _PATTERN_CUSTOM_REWARD = r"\d+,\d+-" + _ACTIONS_FOR_REGEX + r" = -{0,1}\d+"
+    _PATTERN_CUSTOM_REWARD = r"(\d+,\d+-" + _ACTIONS_FOR_REGEX + r") = (-{0,1}\d+)"
+    _PATTERN_CUSTOM_TRANSITION = (
+        r"(\d+,\d+-" + _ACTIONS_FOR_REGEX + r")-(\d+,\d+) = (-{0,1}\d+|DEFAULT)"
+    )
 
     def __init__(self, input_grid_path: str, input_rules_path: str) -> None:
         self._default_start_state = None
@@ -139,6 +155,7 @@ class Gridworld(Environment):
 
         self.actions = set()
         self.custom_rewards = {}
+        self.custom_transitions = {}
         current_section = None
 
         for line in lines:
@@ -156,20 +173,33 @@ class Gridworld(Environment):
                         raise InvalidActionError(f"Invalid action: {line}")
 
                 elif current_section == "REWARDS":
-                    if re.match(self._PATTERN_DEFAULT_REWARD, line):
-                        self.default_reward = int(line.split("=")[1].strip())
+                    match_default_reward = re.match(self._PATTERN_DEFAULT_REWARD, line)
+                    match_custom_reward = re.match(self._PATTERN_CUSTOM_REWARD, line)
 
-                    elif re.match(self._PATTERN_CUSTOM_REWARD, line):
-                        state_action = line.split("=")[0].strip()
-                        reward = int(line.split("=")[1].strip())
+                    if match_default_reward:
+                        self.default_reward = int(match_default_reward.groups()[0])
+
+                    elif match_custom_reward:
+                        state_action = match_custom_reward.groups()[0]
+                        reward = int(match_custom_reward.groups()[1])
                         self.custom_rewards[state_action] = reward
 
                     else:
                         raise InvalidRewardConfigError(f"Invalid reward: {line}")
 
                 elif current_section == "TRANSITIONS":
-                    # TODO implement custom transitions
-                    pass
+                    match_custom_transition = re.match(self._PATTERN_CUSTOM_TRANSITION, line)
+                    if match_custom_transition:
+                        state_action = match_custom_transition.groups()[0]
+                        result_state = match_custom_transition.groups()[1]
+                        reward = match_custom_transition.groups()[2]
+                        if reward == "DEFAULT":
+                            reward = self.default_reward
+                        else:
+                            reward = int(reward)
+                        self.custom_transitions[state_action] = (result_state, reward)
+                    else:
+                        raise InvalidTransitionConfigError(f"Invalid transition: {line}")
 
     def _add_transitions_to_cell(self, row: int, column: int) -> None:
         for action in self.actions:
@@ -193,6 +223,14 @@ class Gridworld(Environment):
             next_col = column + h_offset
             next_row = row + v_offset
 
+            # Check if there is a custom transition for this state-action pair
+            try:
+                result_state, reward = self.custom_transitions[f"{row},{column}-{action}"]
+                next_row = int(result_state.split(",")[0])
+                next_col = int(result_state.split(",")[1])
+            except KeyError:
+                pass
+
             if (0 <= next_row < self.row_num) and (0 <= next_col < self.column_num):
                 if self.grid[next_row][next_col] in [".", "S", "G"]:
                     # Add transition to new state
@@ -208,7 +246,8 @@ class Gridworld(Environment):
 
     def _define_dynamics(self) -> None:
         # IMPROVEMENT instead of defining all transitions (memory intensive),
-        # could compute them on the fly depending on action selected
+        # could compute them on the fly depending on action selected.
+        # Careful with custom transitions though.
 
         self.transitions = {}
 
